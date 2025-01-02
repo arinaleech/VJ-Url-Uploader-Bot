@@ -1,71 +1,125 @@
-import logging
-import os
+import math
 import time
-import requests
-
-from plugins.functions.display_progress import humanbytes
+import logging
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 
-def DetectFileSize(url):
+async def progress_for_pyrogram(current, total, ud_type, message, start):
     """
-    Detect the file size of a remote file by sending a HEAD request.
+    Display progress for a Pyrogram file upload or download.
 
     Parameters:
-    - url (str): URL of the remote file.
+    - current (int): Current progress value.
+    - total (int): Total value (completion point).
+    - ud_type (str): Type of upload/download (e.g., "Uploading", "Downloading").
+    - message: The Pyrogram message to edit.
+    - start: The start time of the operation.
 
     Returns:
-    int: Size of the file in bytes.
+    None
     """
-    r = requests.head(url, allow_redirects=True, timeout=60)
-    return int(r.headers.get("content-length", 0))
+    now = time.time()
+    diff = now - start
+    if round(diff % 10.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = current / diff
+        elapsed_time = round(diff) * 1000
+        time_to_completion = round((total - current) / speed) * 1000
+        estimated_total_time = elapsed_time + time_to_completion
+
+        elapsed_time = TimeFormatter(milliseconds=elapsed_time)
+        estimated_total_time = TimeFormatter(milliseconds=estimated_total_time)
+
+        progress = "[{0}{1}] \nP: {2}%\n".format(
+            "".join(["◾" for _ in range(math.floor(percentage / 5))]),
+            "".join(["◽" for _ in range(20 - math.floor(percentage / 5))]),
+            round(percentage, 2),
+        )
+
+        tmp = progress + "{0} of {1}\n\nSpeed: {2}/s\n\nETA: {3}\n\n".format(
+            humanbytes(current),
+            humanbytes(total),
+            humanbytes(speed),
+            estimated_total_time if estimated_total_time != "" else "0 s",
+        )
+        try:
+            await message.edit(text=f"{ud_type}\n {tmp}")
+        except Exception as e:
+            logger.info("Error %s", e)
+            return
 
 
-def DownLoadFile(url, file_name, chunk_size, client, ud_type, message_id, chat_id):
+SIZE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
+
+
+def huanbytes(size_in_bytes) -> str:
     """
-    Download a file from a given URL and display the download progress.
+    Convert size in bytes to human-readable format.
 
     Parameters:
-    - url (str): URL of the file to be downloaded.
-    - file_name (str): Path to save the downloaded file.
-    - chunk_size (int): Size of each download chunk.
-    - client: Pyrogram client (optional).
-    - ud_type (str): Type of the download (e.g., "File", "Video").
-    - message_id: ID of the message to update the download progress.
-    - chat_id: ID of the chat to update the download progress.
+    - size_in_bytes (int): Size in bytes.
 
     Returns:
-    str: Path to the downloaded file.
+    str: Human-readable size.
     """
-    if os.path.exists(file_name):
-        os.remove(file_name)
-    if not url:
-        return file_name
+    if size_in_bytes is None:
+        return "0B"
+    index = 0
+    while size_in_bytes >= 1024:
+        size_in_bytes /= 1024
+        index += 1
+    try:
+        return f"{round(size_in_bytes, 2)}{SIZE_UNITS[index]}"
+    except IndexError:
+        return "File too large"
 
-    r = requests.get(url, allow_redirects=True, stream=True)
-    total_size = int(r.headers.get("content-length", 0))
-    downloaded_size = 0
 
-    with open(file_name, "wb") as fd:
-        for chunk in r.iter_content(chunk_size=chunk_size):
-            if chunk:
-                fd.write(chunk)
-                downloaded_size += chunk_size
+def humanbytes(size):
+    """
+    Convert size to human-readable format.
 
-            if client is not None and ((total_size // downloaded_size) % 5) == 0:
-                time.sleep(0.3)
-                try:
-                    client.edit_message_text(
-                        chat_id,
-                        message_id,
-                        text=f"{ud_type}: {humanbytes(downloaded_size)} of {humanbytes(total_size)}",
-                    )
-                except Exception as e:
-                    logger.info(f"Error: {e}")
-                    return
+    Parameters:
+    - size (int): Size in bytes.
 
-    return file_name
+    Returns:
+    str: Human-readable size.
+    """
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: " ", 1: "K", 2: "M", 3: "G", 4: "T"}
+    while size > power:
+        size /= power
+        n += 1
+    return f"{str(round(size, 2))} {Dic_powerN[n]}B"
+
+
+def TimeFormatter(milliseconds: int) -> str:
+    """
+    Format time in milliseconds to a human-readable string.
+
+    Parameters:
+    - milliseconds (int): Time in milliseconds.
+
+    Returns:
+    str: Formatted time string.
+    """
+    seconds, milliseconds = divmod(milliseconds, 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = (
+        (f"{str(days)}d, " if days else "")
+        + (f"{str(hours)}h, " if hours else "")
+        + (f"{str(minutes)}m, " if minutes else "")
+        + (f"{str(seconds)}s, " if seconds else "")
+        + (f"{str(milliseconds)}ms, " if milliseconds else "")
+    )
+
+    return tmp[:-2]
