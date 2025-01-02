@@ -1,160 +1,125 @@
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
-
-# the logging things
-import logging
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-
-import asyncio
-import os
+import math
 import time
-from hachoir.metadata import extractMetadata
-from hachoir.parser import createParser
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 
-async def place_water_mark(input_file, output_file, water_mark_file):
-    watermarked_file = output_file + ".watermark.png"
-    metadata = extractMetadata(createParser(input_file))
-    width = metadata.get("width")
-    # https://stackoverflow.com/a/34547184/4723940
-    shrink_watermark_file_genertor_command = [
-        "ffmpeg",
-        "-i", water_mark_file,
-        "-y -v quiet",
-        "-vf",
-        "scale={}*0.5:-1".format(width),
-        watermarked_file
-    ]
-    # print(shrink_watermark_file_genertor_command)
-    process = await asyncio.create_subprocess_exec(
-        *shrink_watermark_file_genertor_command,
-        # stdout must a pipe to be accessible as process.stdout
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+async def progress_for_pyrogram(current, total, ud_type, message, start):
+    """
+    Display progress for a Pyrogram file upload or download.
+
+    Parameters:
+    - current (int): Current progress value.
+    - total (int): Total value (completion point).
+    - ud_type (str): Type of upload/download (e.g., "Uploading", "Downloading").
+    - message: The Pyrogram message to edit.
+    - start: The start time of the operation.
+
+    Returns:
+    None
+    """
+    now = time.time()
+    diff = now - start
+    if round(diff % 10.00) == 0 or current == total:
+        percentage = current * 100 / total
+        speed = current / diff
+        elapsed_time = round(diff) * 1000
+        time_to_completion = round((total - current) / speed) * 1000
+        estimated_total_time = elapsed_time + time_to_completion
+
+        elapsed_time = TimeFormatter(milliseconds=elapsed_time)
+        estimated_total_time = TimeFormatter(milliseconds=estimated_total_time)
+
+        progress = "[{0}{1}] \nP: {2}%\n".format(
+            "".join(["◾" for _ in range(math.floor(percentage / 5))]),
+            "".join(["◽" for _ in range(20 - math.floor(percentage / 5))]),
+            round(percentage, 2),
+        )
+
+        tmp = progress + "{0} of {1}\n\nSpeed: {2}/s\n\nETA: {3}\n\n".format(
+            humanbytes(current),
+            humanbytes(total),
+            humanbytes(speed),
+            estimated_total_time if estimated_total_time != "" else "0 s",
+        )
+        try:
+            await message.edit(text=f"{ud_type}\n {tmp}")
+        except Exception as e:
+            logger.info("Error %s", e)
+            return
+
+
+SIZE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
+
+
+def huanbytes(size_in_bytes) -> str:
+    """
+    Convert size in bytes to human-readable format.
+
+    Parameters:
+    - size_in_bytes (int): Size in bytes.
+
+    Returns:
+    str: Human-readable size.
+    """
+    if size_in_bytes is None:
+        return "0B"
+    index = 0
+    while size_in_bytes >= 1024:
+        size_in_bytes /= 1024
+        index += 1
+    try:
+        return f"{round(size_in_bytes, 2)}{SIZE_UNITS[index]}"
+    except IndexError:
+        return "File too large"
+
+
+def humanbytes(size):
+    """
+    Convert size to human-readable format.
+
+    Parameters:
+    - size (int): Size in bytes.
+
+    Returns:
+    str: Human-readable size.
+    """
+    if not size:
+        return ""
+    power = 2**10
+    n = 0
+    Dic_powerN = {0: " ", 1: "K", 2: "M", 3: "G", 4: "T"}
+    while size > power:
+        size /= power
+        n += 1
+    return f"{str(round(size, 2))} {Dic_powerN[n]}B"
+
+
+def TimeFormatter(milliseconds: int) -> str:
+    """
+    Format time in milliseconds to a human-readable string.
+
+    Parameters:
+    - milliseconds (int): Time in milliseconds.
+
+    Returns:
+    str: Formatted time string.
+    """
+    seconds, milliseconds = divmod(milliseconds, 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = (
+        (f"{str(days)}d, " if days else "")
+        + (f"{str(hours)}h, " if hours else "")
+        + (f"{str(minutes)}m, " if minutes else "")
+        + (f"{str(seconds)}s, " if seconds else "")
+        + (f"{str(milliseconds)}ms, " if milliseconds else "")
     )
-    # Wait for the subprocess to finish
-    stdout, stderr = await process.communicate()
-    e_response = stderr.decode().strip()
-    t_response = stdout.decode().strip()
-    commands_to_execute = [
-        "ffmpeg",
-        "-i", input_file,
-        "-i", watermarked_file,
-        "-filter_complex",
-        # https://stackoverflow.com/a/16235519
-        # "\"[0:0] scale=400:225 [wm]; [wm][1:0] overlay=305:0 [out]\"",
-        # "-map \"[out]\" -b:v 896k -r 20 -an ",
-        "\"overlay=(main_w-overlay_w):(main_h-overlay_h)\"",
-        # "-vf \"drawtext=text='@FFMovingPictureExpertGroupBOT':x=W-(W/2):y=H-(H/2):fontfile=" + Config.FONT_FILE + ":fontsize=12:fontcolor=white:shadowcolor=black:shadowx=5:shadowy=5\"",
-        output_file
-    ]
-    # print(commands_to_execute)
-    process = await asyncio.create_subprocess_exec(
-        *commands_to_execute,
-        # stdout must a pipe to be accessible as process.stdout
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    # Wait for the subprocess to finish
-    stdout, stderr = await process.communicate()
-    e_response = stderr.decode().strip()
-    t_response = stdout.decode().strip()
-    return output_file
 
-
-async def take_screen_shot(video_file, output_directory, ttl):
-    # https://stackoverflow.com/a/13891070/4723940
-    out_put_file_name = output_directory + \
-        "/" + str(time.time()) + ".jpg"
-    file_genertor_command = [
-        "ffmpeg",
-        "-ss",
-        str(ttl),
-        "-i",
-        video_file,
-        "-vframes",
-        "1",
-        out_put_file_name
-    ]
-    # width = "90"
-    process = await asyncio.create_subprocess_exec(
-        *file_genertor_command,
-        # stdout must a pipe to be accessible as process.stdout
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    # Wait for the subprocess to finish
-    stdout, stderr = await process.communicate()
-    e_response = stderr.decode().strip()
-    t_response = stdout.decode().strip()
-    if os.path.lexists(out_put_file_name):
-        return out_put_file_name
-    else:
-        return None
-
-# https://github.com/Nekmo/telegram-upload/blob/master/telegram_upload/video.py#L26
-
-async def cult_small_video(video_file, output_directory, start_time, end_time):
-    # https://stackoverflow.com/a/13891070/4723940
-    out_put_file_name = output_directory + \
-        "/" + str(round(time.time())) + ".mp4"
-    file_genertor_command = [
-        "ffmpeg",
-        "-i",
-        video_file,
-        "-ss",
-        start_time,
-        "-to",
-        end_time,
-        "-async",
-        "1",
-        "-strict",
-        "-2",
-        out_put_file_name
-    ]
-    process = await asyncio.create_subprocess_exec(
-        *file_genertor_command,
-        # stdout must a pipe to be accessible as process.stdout
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    # Wait for the subprocess to finish
-    stdout, stderr = await process.communicate()
-    e_response = stderr.decode().strip()
-    t_response = stdout.decode().strip()
-    if os.path.lexists(out_put_file_name):
-        return out_put_file_name
-    else:
-        return None
-
-
-async def generate_screen_shots(
-    video_file,
-    output_directory,
-    is_watermarkable,
-    wf,
-    min_duration,
-    no_of_photos
-):
-    metadata = extractMetadata(createParser(video_file))
-    duration = 0
-    if metadata is not None:
-        if metadata.has("duration"):
-            duration = metadata.get('duration').seconds
-    if duration > min_duration:
-        images = []
-        ttl_step = duration // no_of_photos
-        current_ttl = ttl_step
-        for looper in range(0, no_of_photos):
-            ss_img = await take_screen_shot(video_file, output_directory, current_ttl)
-            current_ttl = current_ttl + ttl_step
-            if is_watermarkable:
-                ss_img = await place_water_mark(ss_img, output_directory + "/" + str(time.time()) + ".jpg", wf)
-            images.append(ss_img)
-        return images
-    else:
-        return None
+    return tmp[:-2]
