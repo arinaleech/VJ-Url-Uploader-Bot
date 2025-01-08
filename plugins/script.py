@@ -22,15 +22,13 @@ I am Powerful Url Uploader Bot
     ABOUT_TEXT = """
 <b>♻️ My Name</b> : Url Uploader Bot
 
-<b>🌀 Channel</b> : <a href="https://t.me/TMWAD">@TMWAD</a>
-
 <b>🌺 Heroku</b> : <a href="https://heroku.com/">Heroku</a>
 
 <b>📑 Language :</b> <a href="https://www.python.org/">Python 3.10.5</a>
 
 <b>🇵🇲 Framework :</b> <a href="https://docs.pyrogram.org/">Pyrogram 2.0.30</a>
 
-<b>👲 Developer :</b> <a href="https://t.me/kinu6">@kinu6</a>
+<b>👲 Developer :</b> <a href="https://t.me/kinu6">@bimbo</a>
 
 """
 
