@@ -21,7 +21,7 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 async def youtube_dl_call_back(_bot, update):
     # Constants
-    AD_STRING_TO_REPLACE = "please report this issue on https://github.com/kalanakt/All-Url-Uploader/issues"
+    AD_STRING_TO_REPLACE = "please report this issue on "
 
     cb_data = update.data
     tg_send_type, youtube_dl_format, youtube_dl_ext, ranom = cb_data.split("|")
